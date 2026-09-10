@@ -1,0 +1,208 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ──────────────────────────────────────────────
+
+enum WorkMode {
+  ONSITE
+  REMOTE
+  HYBRID
+}
+
+enum ApplicationStatus {
+  APPLIED
+  OA
+  SHORTLISTED
+  INTERVIEW
+  SELECTED
+  REJECTED
+}
+
+enum EventType {
+  PPT
+  OA
+  INTERVIEW
+  RESULT
+  OTHER
+}
+
+enum ExperienceRound {
+  OA
+  TECHNICAL_INTERVIEW
+  HR_INTERVIEW
+  PPT
+  OTHER
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum NotificationType {
+  EVENT_CREATED
+  EVENT_UPDATED
+  EVENT_REMINDER
+  GENERAL
+}
+
+// ─── Models ─────────────────────────────────────────────
+
+model User {
+  id             String         @id @default(uuid())
+  name           String
+  email          String         @unique
+  password       String
+  branch         String
+  graduationYear Int
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  applications   Application[]
+  experiences    Experience[]
+  notifications  Notification[]
+  pushSubscriptions PushSubscription[]
+  activityLogs   ActivityLog[]
+  companiesCreated Company[]    @relation("CompanyCreator")
+  eventsCreated  Event[]        @relation("EventCreator")
+
+  @@index([email])
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid())
+  endpoint  String
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, endpoint])
+  @@index([userId])
+}
+
+model Company {
+  id               String        @id @default(uuid())
+  name             String
+  role             String
+  ctc              String?
+  description      String?
+  eligibility      String?
+  eligibleBranches String[]
+  location         String?
+  workMode         WorkMode      @default(ONSITE)
+  notes            String?
+  logoUrl          String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  createdById      String
+  createdBy        User          @relation("CompanyCreator", fields: [createdById], references: [id])
+
+  applications     Application[]
+  events           Event[]
+  experiences      Experience[]
+
+  @@index([name])
+}
+
+model Application {
+  id        String            @id @default(uuid())
+  status    ApplicationStatus @default(APPLIED)
+  appliedAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  userId    String
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  companyId String
+  company   Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, companyId])
+  @@index([userId])
+  @@index([companyId])
+}
+
+model Event {
+  id          String    @id @default(uuid())
+  type        EventType
+  title       String
+  dateTime    DateTime
+  reminderSentAt DateTime?
+  venue       String?
+  isOnline    Boolean   @default(false)
+  meetingUrl  String?
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  createdById String
+  createdBy   User      @relation("EventCreator", fields: [createdById], references: [id])
+
+  @@index([companyId])
+  @@index([dateTime])
+}
+
+model Experience {
+  id         String          @id @default(uuid())
+  round      ExperienceRound
+  content    String
+  difficulty Difficulty
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  userId     String
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  companyId  String
+  company    Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([userId])
+}
+
+model Notification {
+  id         String           @id @default(uuid())
+  type       NotificationType
+  title      String
+  message    String
+  isRead     Boolean          @default(false)
+  entityId   String?
+  entityType String?
+  createdAt  DateTime         @default(now())
+
+  userId     String
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+}
+
+model ActivityLog {
+  id            String   @id @default(uuid())
+  action        String
+  entity        String
+  entityId      String
+  previousValue Json?
+  newValue      Json?
+  createdAt     DateTime @default(now())
+
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([entityId])
+  @@index([createdAt])
+}
